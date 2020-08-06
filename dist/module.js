@@ -8019,6 +8019,10 @@ var interpolators = {
 // min and max, using a given color palette.
 
 var makeSpectrumColorScale = function makeSpectrumColorScale(palette, min, max, invertPalette) {
+  if (min == 0 && max < 1) {
+    max = min + 1;
+  }
+
   if (invertPalette) {
     return d3__WEBPACK_IMPORTED_MODULE_0__["scaleSequential"](interpolators[palette]).domain([max, min]);
   } else {
@@ -8584,7 +8588,7 @@ var plugin = new _grafana_data__WEBPACK_IMPORTED_MODULE_1__["PanelPlugin"](_Heat
       defaultValue: 'interpolateSpectral'
     }).addBooleanSwitch({
       path: 'invertPalette',
-      name: 'Invert color palette',
+      name: 'Invert Color Palette',
       defaultValue: false,
       showIf: paletteNotSelected('custom')
     }).addSelect({
