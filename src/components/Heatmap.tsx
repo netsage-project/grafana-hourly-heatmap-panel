@@ -89,7 +89,11 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				return (
 					<Tippy
 						key={i}
+<<<<<<< Updated upstream
 						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue)}
+=======
+						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue ? displayValue : 'NA')}
+>>>>>>> Stashed changes
 						placement="bottom"
 						animation={false}
 					>
