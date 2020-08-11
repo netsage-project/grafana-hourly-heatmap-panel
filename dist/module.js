@@ -8184,7 +8184,7 @@ var Heatmap = function Heatmap(_a) {
       key: i,
       content: tooltip(Object(_grafana_data__WEBPACK_IMPORTED_MODULE_2__["dateTimeParse"])(d.dayMillis, {
         timeZone: timeZone
-      }), displayValue),
+      }), displayValue || 'NA'),
       placement: "bottom",
       animation: false
     }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("rect", {
