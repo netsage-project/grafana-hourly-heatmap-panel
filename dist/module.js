@@ -8179,6 +8179,7 @@ var Heatmap = function Heatmap(_a) {
     // start of the day.
 
     var startOfBucketMinute = (startOfBucketTime.hour ? startOfBucketTime.hour() : 0.0) * 60 + (startOfBucketTime.minute ? startOfBucketTime.minute() : 0.0);
+    console.log(colorScale(d.value));
     return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(_tippyjs_react__WEBPACK_IMPORTED_MODULE_3__["default"], {
       key: i,
       content: tooltip(Object(_grafana_data__WEBPACK_IMPORTED_MODULE_2__["dateTimeParse"])(d.dayMillis, {
@@ -8189,7 +8190,7 @@ var Heatmap = function Heatmap(_a) {
     }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("rect", {
       x: x(startOfDay.format(timeFormat)),
       y: Math.ceil(y(startOfBucketMinute)),
-      fill: colorScale(d.value),
+      fill: colorScale(d.value) || 'orange',
       width: cellWidth,
       height: cellHeight
     }));
