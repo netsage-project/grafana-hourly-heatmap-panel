@@ -16,6 +16,7 @@ interface HeatmapChartProps {
   height: number;
   colorScale: any;
   timeZone: string;
+  nullValueColor:string; 
   dailyInterval: [number, number];
 }
 
@@ -28,6 +29,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
   width,
   height,
   colorScale,
+  nullValueColor, 
   timeZone,
   dailyInterval,
 }) => {
@@ -82,6 +84,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
         width={chartWidth}
         height={chartHeight}
         colorScale={colorScale}
+        nullValueColor = {nullValueColor}
         timeZone={timeZone}
         dailyInterval={dailyInterval}
       />

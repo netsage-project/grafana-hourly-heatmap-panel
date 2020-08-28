@@ -79,6 +79,7 @@ export const HeatmapContainer: React.FC<HeatmapContainerProps> = ({
   const colorPalette = fieldConfig.colorPalette;
   const invertPalette = fieldConfig.invertPalette;
   const colorSpace = fieldConfig.colorSpace;
+  const nullValueColor = fieldConfig.nullValueColor; 
   const thresholds: ThresholdsConfig = fieldConfig.thresholds ?? {
     mode: ThresholdsMode.Percentage,
     steps: [],
@@ -111,6 +112,7 @@ export const HeatmapContainer: React.FC<HeatmapContainerProps> = ({
           width={heatmapWidth}
           height={heatmapHeight}
           colorScale={scale}
+          nullValueColor = {nullValueColor}
           timeZone={timeZone}
           dailyInterval={dailyIntervalHours}
         />

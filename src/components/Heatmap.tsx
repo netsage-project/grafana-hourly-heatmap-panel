@@ -14,6 +14,7 @@ interface HeatmapProps {
 	values: string[];
 	data: BucketData;
 	colorScale: any;
+	nullValueColor: string; 
 	width: number;
 	height: number;
 	numBuckets: number;
@@ -28,6 +29,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 	values,
 	data,
 	colorScale,
+	nullValueColor, 
 	width,
 	height,
 	numBuckets,
@@ -96,7 +98,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 						<rect
 							x={x(startOfDay.format(timeFormat))}
 							y={Math.ceil(y(startOfBucketMinute))}
-							fill={colorScale(d.value) || 'orange'}
+							fill={colorScale(d.value) || nullValueColor}
 							width={cellWidth}
 							height={cellHeight}
 						/>
