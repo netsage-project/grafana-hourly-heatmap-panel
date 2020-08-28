@@ -61,6 +61,11 @@ export const plugin = new PanelPlugin<HeatmapOptions, HeatmapFieldConfig>(Heatma
           defaultValue: false,
           showIf: paletteNotSelected('custom'),
         })
+        .addColorPicker({
+          path:'nullValueColor', 
+          name:'null value color', 
+          defaultValue:'orange'
+        })
         .addSelect({
           path: 'colorSpace',
           name: 'Color space',
