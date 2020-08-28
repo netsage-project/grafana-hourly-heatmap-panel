@@ -64,7 +64,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				</div>
 				<div>
 					<strong>
-						{displayValue.text===""?"NaN": displayValue.text}
+						{displayValue.text===""?"Not Available": displayValue.text}
 						{displayValue.suffix ? displayValue.suffix : null}
 					</strong>
 				</div>
@@ -87,7 +87,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				const startOfBucketMinute =
 					(startOfBucketTime.hour ? startOfBucketTime.hour() : 0.0) * 60 +
 					(startOfBucketTime.minute ? startOfBucketTime.minute() : 0.0);
-				console.log(displayValue);
 				return (
 					<Tippy
 						key={i}
