@@ -86,6 +86,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
         const startOfDay = dateTimeParse(d.dayMillis, { timeZone });
         const startOfBucketTime = dateTimeParse(d.bucketStartMillis, { timeZone });
 
+<<<<<<< Updated upstream
         // The Y value of the cell is the number of elapsed minutes since the
         // start of the day.
         const startOfBucketMinute =
@@ -111,4 +112,30 @@ export const Heatmap: React.FC<HeatmapProps> = ({
       })}
     </g>
   );
+=======
+				// The Y value of the cell is the number of elapsed minutes since the
+				// start of the day.
+				const startOfBucketMinute =
+					(startOfBucketTime.hour ? startOfBucketTime.hour() : 0.0) * 60 +
+					(startOfBucketTime.minute ? startOfBucketTime.minute() : 0.0);
+				return (
+					<Tippy
+						key={i}
+						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue ? displayValue : 'NA')}
+						placement="bottom"
+						animation={false}
+					>
+						<rect
+							x={x(startOfDay.format(timeFormat))}
+							y={Math.ceil(y(startOfBucketMinute))}
+							fill={colorScale(d.value) || 'orange'}
+							width={cellWidth}
+							height={cellHeight}
+						/>
+					</Tippy>
+				);
+			})}
+		</g>
+	);
+>>>>>>> Stashed changes
 };
