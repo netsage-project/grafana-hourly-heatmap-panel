@@ -87,7 +87,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				const startOfBucketMinute =
 					(startOfBucketTime.hour ? startOfBucketTime.hour() : 0.0) * 60 +
 					(startOfBucketTime.minute ? startOfBucketTime.minute() : 0.0);
-				console.log(colorScale(d.value));
+				console.log(displayValue);
 				return (
 					<Tippy
 						key={i}
