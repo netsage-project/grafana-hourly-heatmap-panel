@@ -64,7 +64,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				</div>
 				<div>
 					<strong>
-						{displayValue.text}
+						{displayValue.text===""?"NaN": displayValue.text}
 						{displayValue.suffix ? displayValue.suffix : null}
 					</strong>
 				</div>
@@ -91,7 +91,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({
 				return (
 					<Tippy
 						key={i}
-						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue ? displayValue : 'NA')}
+						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue)}
 						placement="bottom"
 						animation={false}
 					>
