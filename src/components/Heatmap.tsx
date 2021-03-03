@@ -1,109 +1,140 @@
 import React from 'react';
 import * as d3 from 'd3';
-import { DateTime, dateTimeParse } from '@grafana/data';
+import { dateTimeParse } from '@grafana/data';
+import { TimeRegion } from './TimeRegionEditor';
+import { useTheme } from '@grafana/ui';
 
 import { BucketData } from '../bucket';
 
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 
-const timeFormat = 'MM/DD';
+import { Tooltip } from './Tooltip';
 const minutesPerDay = 24 * 60;
-
 interface HeatmapProps {
-	values: string[];
-	data: BucketData;
-	colorScale: any;
-	nullValueColor: string; 
-	width: number;
-	height: number;
-	numBuckets: number;
-	timeZone: string;
-	dailyInterval: [number, number];
+  values: string[];
+  data: BucketData;
+  colorDisplay: (value: number) => string;
+  width: number;
+  height: number;
+  numBuckets: number;
+  timeZone: string;
+  dailyIntervalMinutes: [number, number];
+  regions: TimeRegion[];
+  onHover: (value?: number) => void;
+  cellBorder: boolean;
+  tooltip: boolean;
 }
 
 /**
  * A two-dimensional grid of colored cells.
  */
 export const Heatmap: React.FC<HeatmapProps> = ({
-	values,
-	data,
-	colorScale,
-	nullValueColor, 
-	width,
-	height,
-	numBuckets,
-	timeZone,
-	dailyInterval
+  values,
+  data,
+  colorDisplay,
+  width,
+  height,
+  numBuckets,
+  timeZone,
+  dailyIntervalMinutes,
+  regions,
+  onHover,
+  cellBorder,
+  tooltip,
 }) => {
-	// Maps columns (days) to a position along the X axis.
-	const x = d3.scaleBand().domain(values).range([ 0, width ]);
+  const theme = useTheme();
 
-	const cellWidth = Math.ceil(x.bandwidth());
+  const x = d3.scaleBand().domain(values).range([0, width]);
 
-	// The interval of hours to display is given in hours, but since we want to
-	// map buckets on a minute basis, we first need to convert the interval to
-	// minutes.
-	const dailyIntervalMinutes = [ dailyInterval[0] * 60, dailyInterval[1] * 60 ];
+  const y = d3.scaleLinear().domain(dailyIntervalMinutes).range([0, height]);
 
-	const y = d3.scaleLinear().domain(dailyIntervalMinutes).range([ 0, height ]);
+  const cellWidth = Math.ceil(x.bandwidth());
+  const cellHeight = bucketHeight(height, numBuckets, dailyIntervalMinutes);
 
-	// Calculate the height of each cell.
-	const minutesPerBucket = minutesPerDay / numBuckets;
-	const intervalMinutes = dailyIntervalMinutes[1] - dailyIntervalMinutes[0];
-	const pixelsPerBucket = height / (intervalMinutes / minutesPerBucket);
-	const cellHeight = Math.ceil(pixelsPerBucket);
+  const intervalMinutes = dailyIntervalMinutes[1] - dailyIntervalMinutes[0];
+  const pixelsPerMinute = height / intervalMinutes;
 
-	// Generates a tooltip for a data point.
-	const tooltip = (day: DateTime, displayValue: any) => {
-		return (
-			<div>
-				<div>
-					{day.format('LL')} {day.format('LT')}&#8211;
-					{day.add(minutesPerDay / numBuckets, 'minute').format('LT')}
-				</div>
-				<div>
-					<strong>
-						{displayValue.text===""?"Not Available": displayValue.text}
-						{displayValue.suffix ? displayValue.suffix : null}
-					</strong>
-				</div>
-			</div>
-		);
-	};
+  return (
+    <>
+      <g>
+        {data.points.map((d, i) => {
+          const startOfDay = dateTimeParse(d.dayMillis, { timeZone }).startOf('day');
+          const bucketStart = dateTimeParse(d.bucketStartMillis, { timeZone });
+          const minutesSinceStartOfDay = bucketStart.hour!() * 60 + bucketStart.minute!();
+          const displayValue = data.valueField.display!(d.value);
 
-	return (
-		<g>
-			{data.points.map((d, i) => {
-				// The display processor formats the value based on field
-				// configuration, such as the unit and number of decimals.
-				const displayValue = data.displayProcessor(d.value);
+          const content = (
+            <rect
+              x={x(startOfDay.valueOf().toString())}
+              y={Math.ceil(y(minutesSinceStartOfDay) ?? 0)}
+              fill={colorDisplay(d.value)}
+              width={cellWidth}
+              height={cellHeight}
+              onMouseLeave={() => onHover(undefined)}
+              onMouseEnter={() => onHover(d.value)}
+              stroke={cellBorder ? theme.colors.panelBg : undefined}
+            />
+          );
 
-				const startOfDay = dateTimeParse(d.dayMillis, { timeZone });
-				const startOfBucketTime = dateTimeParse(d.bucketStartMillis, { timeZone });
+          if (tooltip) {
+            return (
+              <Tippy
+                key={i}
+                content={
+                  <div>
+                    <Tooltip
+                      bucketStartTime={bucketStart}
+                      displayValue={displayValue}
+                      numBuckets={numBuckets}
+                      tz={timeZone}
+                    />
+                  </div>
+                }
+                placement="bottom"
+                animation={false}
+              >
+                {content}
+              </Tippy>
+            );
+          } else {
+            return content;
+          }
+        })}
+      </g>
+      <g>
+        {regions
+          .filter((region) => {
+            const yPos = Math.ceil(y(region.start.hour * 60 + region.start.minute) ?? 0);
+            return 0 <= yPos && yPos < height;
+          })
+          .map((region, key) => {
+            const regionDuration =
+              region.end.hour * 60 + region.end.minute - (region.start.hour * 60 + region.start.minute);
+            const yPos = Math.ceil(y(region.start.hour * 60 + region.start.minute) ?? 0);
+            const regionHeight = Math.ceil(regionDuration * pixelsPerMinute);
+            return (
+              <rect
+                key={key}
+                x={0}
+                y={yPos}
+                width={width}
+                height={yPos + regionHeight >= height ? height - yPos : regionHeight}
+                stroke={region.color}
+                fill={region.color}
+                pointerEvents="none"
+                strokeWidth={2}
+              />
+            );
+          })}
+      </g>
+    </>
+  );
+};
 
-				// The Y value of the cell is the number of elapsed minutes since the
-				// start of the day.
-				const startOfBucketMinute =
-					(startOfBucketTime.hour ? startOfBucketTime.hour() : 0.0) * 60 +
-					(startOfBucketTime.minute ? startOfBucketTime.minute() : 0.0);
-				return (
-					<Tippy
-						key={i}
-						content={tooltip(dateTimeParse(d.dayMillis, { timeZone }), displayValue)}
-						placement="bottom"
-						animation={false}
-					>
-						<rect
-							x={x(startOfDay.format(timeFormat))}
-							y={Math.ceil(y(startOfBucketMinute))}
-							fill={colorScale(d.value) || nullValueColor}
-							width={cellWidth}
-							height={cellHeight}
-						/>
-					</Tippy>
-				);
-			})}
-		</g>
-	);
+const bucketHeight = (height: number, numBuckets: number, dailyIntervalMinutes: [number, number]) => {
+  const minutesPerBucket = minutesPerDay / numBuckets;
+  const intervalMinutes = dailyIntervalMinutes[1] - dailyIntervalMinutes[0];
+  const pixelsPerBucket = height / (intervalMinutes / minutesPerBucket);
+  return Math.ceil(pixelsPerBucket);
 };

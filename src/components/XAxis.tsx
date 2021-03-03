@@ -1,6 +1,6 @@
 import React from 'react';
 import * as d3 from 'd3';
-import { DateTime, dateTime, dateTimeFormat } from '@grafana/data';
+import { DateTime, dateTimeParse } from '@grafana/data';
 
 interface XAxisProps {
   values: any[];
@@ -11,31 +11,40 @@ interface XAxisProps {
   timeZone: string;
 }
 
-export const XAxis: React.FC<XAxisProps> = ({ width, values, from, to, numDays, timeZone }) => {
-  const x = d3
-    .scaleBand()
-    .domain(values)
-    .rangeRound([0, width]);
+const localeOptions = {
+  month: '2-digit',
+  day: '2-digit',
+};
 
-  const xTime = d3
-    .scaleTime()
-    .domain([from.toDate(), to.toDate()])
-    .range([0, width]);
+const referenceText = dateTimeParse(0).toDate().toLocaleDateString(undefined, localeOptions);
 
-  const every = calculateTickWidth(width, numDays);
+export const XAxis: React.FC<XAxisProps> = React.memo(({ width, values, from, to, numDays, timeZone }) => {
+  const x = d3.scaleBand().domain(values).rangeRound([0, width]);
+
+  const xTime = d3.scaleTime().domain([from.toDate(), to.toDate()]).range([0, width]);
+
+  const every = calculateTickInterval(width, numDays, referenceText);
 
   const xTimeAxis = d3
     .axisBottom(xTime)
     .ticks(d3.timeDay, every)
-    .tickFormat(d => dateTimeFormat(dateTime(d as number), { timeZone, format: 'MM/DD' }));
+    .tickFormat((d) =>
+      dateTimeParse(d as number, { timeZone })
+        .toDate()
+        .toLocaleDateString(undefined, localeOptions)
+    );
 
-  const xCategoryAxis = d3.axisBottom(x);
+  const xCategoryAxis = d3
+    .axisBottom(x)
+    .tickFormat((d) =>
+      dateTimeParse(parseInt(d, 10), { timeZone }).toDate().toLocaleDateString(undefined, localeOptions)
+    );
 
   const xAxis: any = every > 1 ? xTimeAxis : xCategoryAxis;
 
   return (
     <g
-      ref={node => {
+      ref={(node) => {
         const container = d3.select(node).call(xAxis);
 
         // Remove junk.
@@ -44,10 +53,20 @@ export const XAxis: React.FC<XAxisProps> = ({ width, values, from, to, numDays, 
       }}
     />
   );
+});
+
+const calculateTickInterval = (width: number, numDays: number, referenceText: string) => {
+  const preferredTickWidth = measureText(referenceText);
+  return Math.max(Math.ceil(numDays / (width / preferredTickWidth)), 1);
 };
 
-const calculateTickWidth = (width: number, numDays: number) => {
-  const preferredTickWidth = 60;
-  const ratio = (preferredTickWidth / width) * numDays;
-  return Math.max(Math.floor(ratio), 1);
+const measureText = (text: string): number => {
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.font = '14px Arial';
+    return ctx.measureText(text).width;
+  }
+  return 0;
 };
+XAxis.displayName = 'XAxis';

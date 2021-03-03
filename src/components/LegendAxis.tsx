@@ -12,11 +12,8 @@ interface LegendAxisProps {
 /**
  * Horizontal axis describing the color spectrum.
  */
-export const LegendAxis: React.FC<LegendAxisProps> = ({ width, min, max, display }) => {
-  const scale = d3
-    .scaleLinear()
-    .domain([min, max])
-    .range([0, width]);
+export const LegendAxis: React.FC<LegendAxisProps> = React.memo(({ width, min, max, display }) => {
+  const scale = d3.scaleLinear().domain([min, max]).range([0, width]);
 
   const preferredTickWidth = 50;
   const ratio = width / preferredTickWidth;
@@ -30,4 +27,5 @@ export const LegendAxis: React.FC<LegendAxisProps> = ({ width, min, max, display
     });
 
   return <g ref={(node: any) => d3.select(node).call(axis)} />;
-};
+});
+LegendAxis.displayName = 'LegendAxis';

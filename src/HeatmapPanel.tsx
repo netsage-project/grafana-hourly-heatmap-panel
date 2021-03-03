@@ -1,12 +1,13 @@
 import React from 'react';
-import { DataFrame, PanelProps, ThresholdsMode, ThresholdsConfig } from '@grafana/data';
-
-import { bucketize } from './bucket';
+import { FieldType, PanelProps } from '@grafana/data';
+import { Chart } from './components/Chart';
 import { HeatmapOptions } from './types';
-import { makeSpectrumColorScale, makeCustomColorScale } from './colors';
+import { PanelWizard } from 'grafana-plugin-support';
 
-import { HeatmapChart } from './components/HeatmapChart';
-import { Legend } from './components/Legend';
+const usage = {
+  schema: [{ type: FieldType.time }, { type: FieldType.number }],
+  url: 'https://github.com/marcusolsson/grafana-hourly-heatmap-panel',
+};
 
 interface Props extends PanelProps<HeatmapOptions> {}
 
@@ -18,123 +19,79 @@ interface Props extends PanelProps<HeatmapOptions> {}
  * `PanelProps`. The `PanelProps` object gives your component access to things
  * like query results, panel options, and the current timezone.
  */
-export const HeatmapPanel: React.FC<Props> = ({ options, data, width, height, timeZone }) => {
+export const HeatmapPanel: React.FC<Props> = ({ options, data, width, height, timeZone, timeRange }) => {
   // `options` contains the properties defined in the `HeatmapOptions` object.
-  const { showLegend, from, to } = options;
+  const {
+    valueFieldName,
+    timeFieldName,
+    regions,
+    showLegend,
+    showValueIndicator,
+    showCellBorder,
+    showTooltip,
+    legendGradientQuality,
+    from,
+    to,
+  } = options;
 
   // Parse the extents of hours to display in a day.
   const dailyIntervalHours: [number, number] = [parseFloat(from), to === '0' ? 24 : parseFloat(to)];
 
+  if (data.series.length === 0) {
+    return <PanelWizard {...usage} />;
+  }
+
+  const frames = data.series.map((frame) => {
+    // Attempt to get a time field by name or default to the first time
+    // field we find.
+    const timeField = timeFieldName
+      ? frame.fields.find((f) => f.name === timeFieldName)
+      : frame.fields.find((f) => f.type === 'time');
+
+    // Attempt to get a value field by name or default to the first number
+    // field we find.
+    const valueField = valueFieldName
+      ? frame.fields.find((f) => f.name === valueFieldName)
+      : frame.fields.find((f) => f.type === 'number');
+
+    return { timeField, valueField, fields: frame.fields };
+  });
+
+  // Make sure all data frames are valid time series.
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+
+    if (!frame.timeField || !frame.valueField) {
+      return <PanelWizard {...usage} fields={frame.fields} />;
+    }
+  }
+
   return (
     <svg width={width} height={height}>
-      {data.series.map((frame, i) => {
+      {/* For multiple queries, divide the panel into segments of equal height. */}
+      {frames.map((frame, i) => {
         const segmentHeight = height / data.series.length;
 
         return (
-          <g transform={`translate(0, ${i * segmentHeight})`}>
-            <HeatmapContainer
+          <g key={i} transform={`translate(0, ${i * segmentHeight})`}>
+            <Chart
               width={width}
               height={segmentHeight}
-              showLegend={showLegend}
-              frame={frame}
+              legend={showLegend}
+              timeField={frame.timeField!}
+              valueField={frame.valueField!}
               timeZone={timeZone}
+              timeRange={timeRange}
               dailyIntervalHours={dailyIntervalHours}
+              regions={regions ?? []}
+              showValueIndicator={showValueIndicator}
+              cellBorder={showCellBorder}
+              legendGradientQuality={legendGradientQuality}
+              tooltip={showTooltip}
             />
           </g>
         );
       })}
     </svg>
-  );
-};
-
-interface HeatmapContainerProps {
-  width: number;
-  height: number;
-
-  showLegend: boolean;
-  frame: DataFrame;
-  timeZone: string;
-  dailyIntervalHours: [number, number];
-}
-
-/**
- * HeatmapContainer is used to support multiple queries. A HeatmapContainer is
- * created for each query.
- */
-export const HeatmapContainer: React.FC<HeatmapContainerProps> = ({
-  width,
-  height,
-  showLegend,
-  frame,
-  timeZone,
-  dailyIntervalHours,
-}) => {
-  // Create a histogram for each day. This builds the main data structure that
-  // we'll use for the heatmap visualization.
-  const bucketData = bucketize(frame, timeZone, dailyIntervalHours);
-
-  // Get custom fields options. For now, we use the configuration in the first
-  // numeric field in the data frame.
-  const fieldConfig = frame.fields.find(field => field.type === 'number')?.config.custom;
-  const colorPalette = fieldConfig.colorPalette;
-  const invertPalette = fieldConfig.invertPalette;
-  const colorSpace = fieldConfig.colorSpace;
-  const nullValueColor = fieldConfig.nullValueColor; 
-  const thresholds: ThresholdsConfig = fieldConfig.thresholds ?? {
-    mode: ThresholdsMode.Percentage,
-    steps: [],
-  };
-
-  // Create the scale we'll be using to map values to colors.
-  let scale =
-    colorPalette === 'custom'
-      ? makeCustomColorScale(colorSpace, bucketData.min, bucketData.max, thresholds)
-      : makeSpectrumColorScale(colorPalette, bucketData.min, bucketData.max, invertPalette);
-
-  // Calculate dimensions for the legend.
-  const legendPadding = { top: 10, left: 35, bottom: 0, right: 10 };
-  const legendWidth = width - (legendPadding.left + legendPadding.right);
-  const legendHeight = 40;
-
-  // Heatmap expands to fill any space not used by the legend.
-  const heatmapPadding = { top: 0, left: 0, bottom: 0, right: legendPadding.right };
-  const heatmapWidth = width - (heatmapPadding.left + heatmapPadding.right);
-  const heatmapHeight =
-    height -
-    (heatmapPadding.top + heatmapPadding.bottom) -
-    (showLegend ? legendHeight + legendPadding.top + legendPadding.bottom : 0.0);
-
-  return (
-    <>
-      <g transform={`translate(${heatmapPadding.left}, ${heatmapPadding.top})`}>
-        <HeatmapChart
-          data={bucketData}
-          width={heatmapWidth}
-          height={heatmapHeight}
-          colorScale={scale}
-          nullValueColor = {nullValueColor}
-          timeZone={timeZone}
-          dailyInterval={dailyIntervalHours}
-        />
-      </g>
-
-      {showLegend ? (
-        <g
-          transform={`translate(${legendPadding.left}, ${heatmapPadding.top +
-            heatmapHeight +
-            heatmapPadding.bottom +
-            legendPadding.top})`}
-        >
-          <Legend
-            width={legendWidth}
-            height={legendHeight}
-            min={bucketData.min}
-            max={bucketData.max}
-            display={bucketData.displayProcessor}
-            colorScale={scale}
-          />
-        </g>
-      ) : null}
-    </>
   );
 };

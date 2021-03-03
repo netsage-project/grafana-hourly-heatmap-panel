@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { dateTime, dateTimeParse, DataFrame, DisplayProcessor } from '@grafana/data';
+import { TimeRange, dateTime, dateTimeParse, DisplayProcessor, Field, getDisplayProcessor } from '@grafana/data';
 
 export interface Point {
   time: number;
@@ -23,10 +23,9 @@ export interface BucketPoint {
 
 export interface BucketData {
   numBuckets: number;
-  min: number;
-  max: number;
   points: BucketPoint[];
-  displayProcessor: DisplayProcessor;
+  valueField: Field<number>;
+  timeField: Field<number>;
 }
 
 // reduce applies a calculation to an aggregated point set.
@@ -40,7 +39,7 @@ const reduce = (agg: PointSet[], calculation: (n: Array<number | undefined>) => 
 // groupByMinutes groups a set of points
 export const groupByMinutes = (points: Point[], minutes: number, timeZone: string): PointSet[] => {
   // Create keys for interval start.
-  const rounded = points.map(point => {
+  const rounded = points.map((point) => {
     const intervalStart = dateTime(point.time);
     intervalStart.subtract(intervalStart.minute ? intervalStart.minute() % minutes : 0.0, 'minutes');
 
@@ -63,11 +62,9 @@ export const groupByMinutes = (points: Point[], minutes: number, timeZone: strin
 };
 
 // groupByDay works like to groupByDays but is a bit simpler.
-export const groupByDay = (points: Point[], timeZone: string): PointSet[] => {
-  const rounded = points.map(point => ({
-    [dateTime(point.time)
-      .startOf('day')
-      .valueOf()]: point,
+export const groupByDay = (points: Point[]): PointSet[] => {
+  const rounded = points.map((point) => ({
+    [dateTime(point.time).startOf('day').valueOf()]: point,
   }));
 
   return Object.entries(
@@ -82,37 +79,50 @@ export const groupByDay = (points: Point[], timeZone: string): PointSet[] => {
   }));
 };
 
-const defaultDisplay: DisplayProcessor = (value: any) => ({ numeric: value, text: value.toString() });
+export const defaultDisplay: DisplayProcessor = (value: any) => ({ numeric: value, text: value.toString() });
 const minutesPerDay = 24 * 60;
 
 // bucketize returns the main data structure used by the visualizations.
-export const bucketize = (frame: DataFrame, timeZone: string, dailyInterval: [number, number]): BucketData => {
-  // Use the first temporal field.
-  const timeField = frame.fields.find(f => f.type === 'time');
-
-  // Use the first numeric field.
-  const valueField = frame.fields.find(f => f.type === 'number');
-
+export const bucketize = (
+  timeField: Field<number>,
+  valueField: Field<number>,
+  timeZone: string,
+  timeRange: TimeRange,
+  dailyInterval: [number, number]
+): BucketData => {
   // Convert data frame fields to rows.
-  const rows = Array.from({ length: frame.length }, (v: any, i: number) => ({
-    time: timeField?.values.get(i),
-    value: valueField?.values.get(i),
+  const rows = Array.from({ length: timeField.values.length }, (_, i) => ({
+    time: timeField.values.get(i),
+    value: valueField.values.get(i),
   }));
 
-  const filteredRows = rows.filter(row => {
+  // Get the time range extents in the dashboard time zone.
+  const extents = [
+    dateTimeParse(timeRange.from.valueOf(), { timeZone }).startOf('day'),
+    dateTimeParse(timeRange.to.valueOf(), { timeZone }).endOf('day'),
+  ];
+
+  const rowsWithinTimeRange = rows.filter((row) => {
+    // Filter points within time range.
+    const curr = dateTimeParse(row.time, { timeZone });
+    return extents[0].valueOf() <= curr.valueOf() && curr.valueOf() < extents[1].valueOf();
+  });
+
+  const rowsWithinDailyInterval = rowsWithinTimeRange.filter((row) => {
+    // Filter rows within interval.
     const dt = dateTimeParse(row.time, { timeZone });
     const hour = dt.hour ? dt.hour() : 0.0;
-
     return dailyInterval[0] <= hour && hour < dailyInterval[1];
   });
 
   // Extract the field configuration..
-  const customData = valueField?.config.custom;
+  const customData = valueField.config.custom;
 
   // Group and reduce values.
-  const groupedByMinutes = groupByMinutes(filteredRows, customData.groupBy, timeZone);
+  const groupedByMinutes = groupByMinutes(rowsWithinDailyInterval, customData.groupBy, timeZone);
   const reducedMinutes = reduce(groupedByMinutes, calculations[customData.calculation]);
-  const points = groupByDay(reducedMinutes, timeZone).flatMap(({ time, values }) =>
+
+  const aggregatedPoints = groupByDay(reducedMinutes).flatMap(({ time, values }) =>
     values.map(({ time, value }) => ({
       dayMillis: time,
       bucketStartMillis: time,
@@ -120,13 +130,42 @@ export const bucketize = (frame: DataFrame, timeZone: string, dailyInterval: [nu
     }))
   );
 
+  recalculateMinMax(
+    valueField,
+    aggregatedPoints.map(({ value }) => value)
+  );
+
   return {
     numBuckets: Math.floor(minutesPerDay / customData.groupBy),
-    displayProcessor: valueField?.display ? valueField?.display : defaultDisplay,
-    points: points,
-    min: valueField?.config.min ?? Number.NEGATIVE_INFINITY,
-    max: valueField?.config.max ?? Number.POSITIVE_INFINITY,
+    points: aggregatedPoints,
+    valueField,
+    timeField,
   };
+};
+
+// recalculateMinMax updates the field min and max to the extents of the
+// aggregated values rather than the raw values.
+//
+// TODO: While this works, it feels like hacky. Is there a better way to do this?
+const recalculateMinMax = (field: Field<number>, values: number[]) => {
+  // Future versions of Grafana will change how the min and max are calculated.
+  // For example, if Min or Max are set to auto, they will be undefined.
+  //
+  // Also, we should probably use getFieldConfigWithMinMax in the future:
+  // https://github.com/grafana/grafana/blob/097dcc456a617bc67c3d5134e22adc00ad5b79c5/packages/grafana-data/src/field/scale.ts#L68
+  const autoMin = !field.config.min || field.config.min === field.state?.calcs?.min;
+  const autoMax = !field.config.max || field.config.max === field.state?.calcs?.max;
+
+  if (autoMin) {
+    field.config.min = d3.min(values);
+  }
+  if (autoMax) {
+    field.config.max = d3.max(values);
+  }
+
+  field.display = getDisplayProcessor({
+    field: field,
+  });
 };
 
 // Lookup table for calculations.
