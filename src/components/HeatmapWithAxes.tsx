@@ -15,6 +15,7 @@ interface HeatmapWithAxesProps {
   colorDisplay: (value: number) => string;
   timeZone: string;
   timeRange: TimeRange;
+  nullValueColor:string;
   dailyInterval: [number, number];
   regions: TimeRegion[];
   onHover: (value?: number) => void;
@@ -30,6 +31,7 @@ export const HeatmapWithAxes: React.FC<HeatmapWithAxesProps> = ({
   width,
   height,
   colorDisplay,
+  nullValueColor,
   timeZone,
   timeRange,
   dailyInterval,
@@ -78,6 +80,7 @@ export const HeatmapWithAxes: React.FC<HeatmapWithAxesProps> = ({
         width={chartWidth}
         height={chartHeight}
         colorDisplay={colorDisplay}
+        nullValueColor = {nullValueColor}
         timeZone={timeZone}
         dailyIntervalMinutes={dailyIntervalMinutes}
         regions={regions}
